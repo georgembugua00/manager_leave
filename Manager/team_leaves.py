@@ -49,7 +49,7 @@ def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=
     
     try:
         # Start with base query
-        query = supabase.table("leaves").select(
+        query = supabase.table("leave_table").select(
             "employee_name, leave_type, start_date, end_date, status, description, decline_reason"
         )
         
@@ -92,7 +92,7 @@ def get_all_employees():
     supabase = init_supabase()
     
     try:
-        response = supabase.table("leaves").select("employee_name").execute()
+        response = supabase.table("leave_table").select("employee_name").execute()
         
         if response.data:
             # Extract unique employee names
@@ -110,7 +110,7 @@ def get_leave_history(employee_name):
     supabase = init_supabase()
     
     try:
-        response = supabase.table("leaves").select(
+        response = supabase.table("leave_table").select(
             "leave_type, start_date, end_date, description, status"
         ).eq("employee_name", employee_name).order("start_date", desc=True).execute()
         
@@ -140,7 +140,7 @@ def submit_leave_request(employee_name, leave_type, start_date, end_date, descri
     supabase = init_supabase()
     
     try:
-        response = supabase.table("leaves").insert({
+        response = supabase.table("leave_table").insert({
             "employee_name": employee_name,
             "leave_type": leave_type,
             "start_date": start_date.isoformat() if hasattr(start_date, 'isoformat') else start_date,
@@ -170,7 +170,7 @@ def update_leave_status(leave_id, new_status, decline_reason=None, recall_reason
         if recall_reason:
             update_data["recall_reason"] = recall_reason
             
-        response = supabase.table("leaves").update(update_data).eq("id", leave_id).execute()
+        response = supabase.table("leave_table").update(update_data).eq("id", leave_id).execute()
         
         if response.data:
             return True, f"Leave status updated to {new_status}"
@@ -185,7 +185,7 @@ def get_leave_by_id(leave_id):
     supabase = init_supabase()
     
     try:
-        response = supabase.table("leaves").select("*").eq("id", leave_id).execute()
+        response = supabase.table("leave_table").select("*").eq("id", leave_id).execute()
         
         if response.data:
             return response.data[0]
@@ -201,7 +201,7 @@ def get_pending_leaves():
     supabase = init_supabase()
     
     try:
-        response = supabase.table("leaves").select("*").eq("status", "Pending").order("created_at", desc=False).execute()
+        response = supabase.table("leave_table").select("*").eq("status", "Pending").order("created_at", desc=False).execute()
         
         if response.data:
             return response.data
