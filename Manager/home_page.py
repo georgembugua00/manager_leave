@@ -13,58 +13,13 @@ def init_supabase():
     supabase: Client = create_client(url, key)
     return supabase
 
-def init_db_supabase():
-    """
-    In Supabase, you typically create tables through the dashboard or SQL editor.
-    This function provides the SQL you need to run in your Supabase SQL editor.
-    """
-    st.info("For Supabase, please ensure the following tables are created via the Supabase Dashboard or SQL Editor:")
-    st.code("""
-    -- Table: employees
-    CREATE TABLE IF NOT EXISTS employees (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        surname TEXT,
-        partner TEXT NOT NULL,
-        department TEXT NOT NULL,
-        position TEXT NOT NULL,
-        salary INTEGER NOT NULL,
-        profile_pic TEXT
-    );
-
-    -- Table: leave_entitlements
-    CREATE TABLE IF NOT EXISTS leave_entitlements (
-        employee_id TEXT PRIMARY KEY REFERENCES employees(id),
-        annual_leave INTEGER NOT NULL,
-        sick_leave INTEGER NOT NULL,
-        compensation_leave INTEGER NOT NULL,
-        maternity_leave_days INTEGER NOT NULL,
-        paternity_leave_days INTEGER NOT NULL
-    );
-
-    -- Table: leaves
-    CREATE TABLE IF NOT EXISTS leaves (
-        id SERIAL PRIMARY KEY,
-        employee_id TEXT NOT NULL REFERENCES employees(id),
-        leave_type TEXT NOT NULL,
-        start_date DATE NOT NULL,
-        end_date DATE NOT NULL,
-        description TEXT,
-        attachment BOOLEAN DEFAULT FALSE,
-        status TEXT NOT NULL,
-        decline_reason TEXT,
-        recall_reason TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    );
-    """)
-    st.info("Make sure you also enable Row Level Security (RLS) and define policies as needed for secure access.")
 
 
 def get_employee_by_name(employee_name):
     """Fetches employee details by name from Supabase."""
     supabase = init_supabase()
     try:
-        response = supabase.table("employees").select("id, name").eq("name", employee_name).execute()
+        response = supabase.table("employee_table").select("id, name").eq("name", employee_name).execute()
         if response.data:
             # Supabase returns a list of dictionaries, fetchone equivalent
             return response.data[0]
@@ -77,7 +32,7 @@ def apply_for_leave(employee_id, leave_type, start_date, end_date, description, 
     """Adds a new leave application to the Supabase database."""
     supabase = init_supabase()
     try:
-        response = supabase.table("leaves").insert({
+        response = supabase.table("leave_table").insert({
             "employee_id": employee_id,
             "leave_type": leave_type,
             "start_date": start_date.isoformat(),
@@ -96,7 +51,7 @@ def get_leave_history(employee_id):
     """Fetches the leave history for a specific employee from Supabase."""
     supabase = init_supabase()
     try:
-        response = supabase.table("leaves").select(
+        response = supabase.table("leave_table").select(
             "leave_type, start_date, end_date, description, status, decline_reason, recall_reason"
         ).eq("employee_id", employee_id).order("start_date", desc=True).execute()
 
@@ -124,7 +79,7 @@ def get_all_pending_leaves():
     supabase = init_supabase()
     try:
         # Join leaves with employees to get employee name
-        response = supabase.table("leaves").select(
+        response = supabase.table("leave_table").select(
             "id, employee_id, leave_type, start_date, end_date, description, employees(name)"
         ).eq("status", "Pending").execute()
 
@@ -151,7 +106,7 @@ def get_approved_leaves():
     """Fetches all leave requests with an 'Approved' status from Supabase."""
     supabase = init_supabase()
     try:
-        response = supabase.table("leaves").select(
+        response = supabase.table("leave_table").select(
             "id, employee_id, leave_type, start_date, end_date, description, employees(name)"
         ).eq("status", "Approved").execute()
 
@@ -185,7 +140,7 @@ def update_leave_status(leave_id, new_status, reason=None):
         update_data["recall_reason"] = reason
 
     try:
-        response = supabase.table("leaves").update(update_data).eq("id", leave_id).execute()
+        response = supabase.table("leave_table").update(update_data).eq("id", leave_id).execute()
         if response.data:
             return True, f"Leave status updated to {new_status}"
         return False, "Failed to update leave status"
@@ -196,7 +151,7 @@ def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=
     """Fetches all team leaves with optional filters for the manager's dashboard from Supabase."""
     supabase = init_supabase()
     try:
-        query = supabase.table("leaves").select(
+        query = supabase.table("leave_table").select(
             "employee_id, leave_type, start_date, end_date, status, description, decline_reason, employees(name)"
         )
 
@@ -246,7 +201,7 @@ def get_all_leaves():
     """Fetches all leave records from Supabase, joining with employee names."""
     supabase = init_supabase()
     try:
-        response = supabase.table("leaves").select(
+        response = supabase.table("leave_table").select(
             "id, leave_type, start_date, end_date, description, status, employees(name)"
         ).execute()
 
@@ -278,7 +233,7 @@ def get_latest_leave_entry():
     """Fetches the details of the most recently added leave entry from Supabase."""
     supabase = init_supabase()
     try:
-        response = supabase.table("leaves").select(
+        response = supabase.table("leave_table").select(
             "leave_type, start_date, end_date, description, status, decline_reason, recall_reason, employees(name)"
         ).order("id", desc=True).limit(1).execute()
 
