@@ -288,9 +288,9 @@ def get_employee_used_leave(employee_id, leave_type=None):
         return 0
 
 # Initialize DB (ensure this runs only once per session)
-if 'db_initialized_supabase' not in st.session_state:
-    init_db_supabase()
-    st.session_state['db_initialized_supabase'] = True
+#if 'db_initialized_supabase' not in st.session_state:
+#    init_db_supabase()
+#    st.session_state['db_initialized_supabase'] = True
 
 st.set_page_config(layout="wide") # Use wide layout for better display
 
