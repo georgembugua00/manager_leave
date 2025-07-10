@@ -7,7 +7,7 @@ import sqlite3
 from datetime import datetime, date, timedelta
 
 # DATABASE PATH - IMPORTANT: Update this to your actual database file path
-DATABASE_PATH = '/Users/danielwanganga/Documents/Airtel_AI/leave_management.db'
+DATABASE_PATH = 'leave_management.db'
 
 def init_db():
     """Initializes the SQLite database and creates necessary tables if they don't exist."""
