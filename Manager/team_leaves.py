@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import date, timedelta
 #from helpers.database import * # Import our new database module
+from supabase import create_client, Client
 
 #DATABASE LOGIC
 import sqlite3
