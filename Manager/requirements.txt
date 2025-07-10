@@ -1,0 +1,6 @@
+streamlit
+supabase
+pandas
+python-dateutil
+streamlit-calendar
+streamlit-pretty-notification-box
