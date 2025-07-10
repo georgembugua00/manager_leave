@@ -1,256 +1,341 @@
 # manager_view.py
 import streamlit as st
 from datetime import date, timedelta, datetime
+from supabase import create_client, Client
+import pandas as pd # Still useful for DataFrame conversion
 
-# database_utils.py
-import sqlite3
-from datetime import datetime, date, timedelta
+# Initialize Supabase client
+@st.cache_resource
+def init_supabase():
+    """Initialize Supabase client with credentials from Streamlit secrets."""
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    supabase: Client = create_client(url, key)
+    return supabase
 
-# DATABASE PATH - IMPORTANT: Update this to your actual database file path
-DATABASE_PATH = 'leave_management.db'
+def init_db_supabase():
+    """
+    In Supabase, you typically create tables through the dashboard or SQL editor.
+    This function provides the SQL you need to run in your Supabase SQL editor.
+    """
+    st.info("For Supabase, please ensure the following tables are created via the Supabase Dashboard or SQL Editor:")
+    st.code("""
+    -- Table: employees
+    CREATE TABLE IF NOT EXISTS employees (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        surname TEXT,
+        partner TEXT NOT NULL,
+        department TEXT NOT NULL,
+        position TEXT NOT NULL,
+        salary INTEGER NOT NULL,
+        profile_pic TEXT
+    );
 
-def init_db():
-    """Initializes the SQLite database and creates necessary tables if they don't exist."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    c = conn.cursor()
+    -- Table: leave_entitlements
+    CREATE TABLE IF NOT EXISTS leave_entitlements (
+        employee_id TEXT PRIMARY KEY REFERENCES employees(id),
+        annual_leave INTEGER NOT NULL,
+        sick_leave INTEGER NOT NULL,
+        compensation_leave INTEGER NOT NULL,
+        maternity_leave_days INTEGER NOT NULL,
+        paternity_leave_days INTEGER NOT NULL
+    );
 
-    # Create employees table if it doesn't exist (assuming 'id' is employee_id)
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS employees (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            surname TEXT,
-            partner TEXT NOT NULL,
-            department TEXT NOT NULL,
-            position TEXT NOT NULL,
-            salary INTEGER NOT NULL,
-            profile_pic TEXT
-        )
-    ''')
+    -- Table: leaves
+    CREATE TABLE IF NOT EXISTS leaves (
+        id SERIAL PRIMARY KEY,
+        employee_id TEXT NOT NULL REFERENCES employees(id),
+        leave_type TEXT NOT NULL,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        description TEXT,
+        attachment BOOLEAN DEFAULT FALSE,
+        status TEXT NOT NULL,
+        decline_reason TEXT,
+        recall_reason TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    """)
+    st.info("Make sure you also enable Row Level Security (RLS) and define policies as needed for secure access.")
 
-    # Create leave_entitlements table
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS leave_entitlements (
-            employee_id TEXT PRIMARY KEY,
-            annual_leave INTEGER NOT NULL,
-            sick_leave INTEGER NOT NULL,
-            compensation_leave INTEGER NOT NULL,
-            maternity_leave_days INTEGER NOT NULL,
-            paternity_leave_days INTEGER NOT NULL,
-            FOREIGN KEY(employee_id) REFERENCES employees(id)
-        )
-    ''')
-
-    # Re-introducing the 'leaves' table for leave applications, linked to employees
-    # IMPORTANT: If you modified your schema and had a 'DROP TABLE IF EXISTS leaves' before,
-    # make sure your database is updated to the latest schema, then you can remove the DROP.
-    # For initial setup or schema updates, you might temporarily uncomment DROP TABLE.
-    # c.execute('DROP TABLE IF EXISTS leaves') # Uncomment ONLY if you need to reset the leaves table structure
-
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS leaves (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            employee_id TEXT NOT NULL,
-            leave_type TEXT NOT NULL,
-            start_date DATE NOT NULL,
-            end_date DATE NOT NULL,
-            description TEXT,
-            attachment BOOLEAN,
-            status TEXT NOT NULL,
-            decline_reason TEXT,
-            recall_reason TEXT,
-            FOREIGN KEY(employee_id) REFERENCES employees(id)
-        )
-    ''')
-    conn.commit()
-    conn.close()
 
 def get_employee_by_name(employee_name):
-    """Fetches employee details by name."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT id, name FROM employees WHERE name = ? COLLATE NOCASE", (employee_name,))
-    employee = c.fetchone()
-    conn.close()
-    return employee
+    """Fetches employee details by name from Supabase."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("employees").select("id, name").eq("name", employee_name).execute()
+        if response.data:
+            # Supabase returns a list of dictionaries, fetchone equivalent
+            return response.data[0]
+        return None
+    except Exception as e:
+        st.error(f"Error fetching employee by name: {str(e)}")
+        return None
 
 def apply_for_leave(employee_id, leave_type, start_date, end_date, description, attachment):
-    """Adds a new leave application to the database."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    c = conn.cursor()
-    c.execute('''
-        INSERT INTO leaves (employee_id, leave_type, start_date, end_date, description, attachment, status)
-        VALUES (?, ?, ?, ?, ?, ?, 'Pending')
-    ''', (employee_id, leave_type, start_date.isoformat(), end_date.isoformat(), description, bool(attachment)))
-    conn.commit()
-    conn.close()
+    """Adds a new leave application to the Supabase database."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("leaves").insert({
+            "employee_id": employee_id,
+            "leave_type": leave_type,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "description": description,
+            "attachment": bool(attachment),
+            "status": "Pending"
+        }).execute()
+        if response.data:
+            return True, "Leave request submitted successfully!"
+        return False, "Failed to submit leave request"
+    except Exception as e:
+        return False, f"Error submitting leave request: {str(e)}"
 
 def get_leave_history(employee_id):
-    """Fetches the leave history for a specific employee."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    c = conn.cursor()
-    c.execute("SELECT leave_type, start_date, end_date, description, status, decline_reason, recall_reason FROM leaves WHERE employee_id = ?", (employee_id,))
-    history = c.fetchall()
-    conn.close()
-    return history
+    """Fetches the leave history for a specific employee from Supabase."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("leaves").select(
+            "leave_type, start_date, end_date, description, status, decline_reason, recall_reason"
+        ).eq("employee_id", employee_id).order("start_date", desc=True).execute()
+
+        if response.data:
+            # Convert to list of tuples for consistency with original SQLite output format
+            history = []
+            for row in response.data:
+                history.append((
+                    row['leave_type'],
+                    row['start_date'],
+                    row['end_date'],
+                    row['description'],
+                    row['status'],
+                    row.get('decline_reason'),
+                    row.get('recall_reason')
+                ))
+            return history
+        return []
+    except Exception as e:
+        st.error(f"Error fetching leave history: {str(e)}")
+        return []
 
 def get_all_pending_leaves():
-    """Fetches all leave requests with a 'Pending' status for the manager."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("""
-        SELECT l.id, e.name AS employee_name, l.leave_type, l.start_date, l.end_date, l.description
-        FROM leaves l
-        JOIN employees e ON l.employee_id = e.id
-        WHERE l.status = 'Pending'
-    """)
-    pending_leaves = c.fetchall()
-    conn.close()
-    return pending_leaves
+    """Fetches all leave requests with a 'Pending' status for the manager from Supabase."""
+    supabase = init_supabase()
+    try:
+        # Join leaves with employees to get employee name
+        response = supabase.table("leaves").select(
+            "id, employee_id, leave_type, start_date, end_date, description, employees(name)"
+        ).eq("status", "Pending").execute()
+
+        if response.data:
+            pending_leaves = []
+            for row in response.data:
+                # Extract employee name from the nested 'employees' dictionary
+                employee_name = row['employees']['name'] if row['employees'] else None
+                pending_leaves.append({
+                    "id": row['id'],
+                    "employee_name": employee_name,
+                    "leave_type": row['leave_type'],
+                    "start_date": row['start_date'],
+                    "end_date": row['end_date'],
+                    "description": row['description']
+                })
+            return pending_leaves
+        return []
+    except Exception as e:
+        st.error(f"Error fetching pending leaves: {str(e)}")
+        return []
 
 def get_approved_leaves():
-    """Fetches all leave requests with an 'Approved' status, including dates for recall logic."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("""
-        SELECT l.id, e.name AS employee_name, l.leave_type, l.start_date, l.end_date, l.description
-        FROM leaves l
-        JOIN employees e ON l.employee_id = e.id
-        WHERE l.status = 'Approved'
-    """)
-    approved_leaves = c.fetchall()
-    conn.close()
-    return approved_leaves
+    """Fetches all leave requests with an 'Approved' status from Supabase."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("leaves").select(
+            "id, employee_id, leave_type, start_date, end_date, description, employees(name)"
+        ).eq("status", "Approved").execute()
+
+        if response.data:
+            approved_leaves = []
+            for row in response.data:
+                employee_name = row['employees']['name'] if row['employees'] else None
+                approved_leaves.append({
+                    "id": row['id'],
+                    "employee_name": employee_name,
+                    "leave_type": row['leave_type'],
+                    "start_date": row['start_date'],
+                    "end_date": row['end_date'],
+                    "description": row['description']
+                })
+            return approved_leaves
+        return []
+    except Exception as e:
+        st.error(f"Error fetching approved leaves: {str(e)}")
+        return []
 
 def update_leave_status(leave_id, new_status, reason=None):
-    """Updates the status of a leave request (Approve, Decline, Recall)."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    c = conn.cursor()
+    """Updates the status of a leave request in Supabase."""
+    supabase = init_supabase()
+    update_data = {"status": new_status}
     if new_status == "Declined":
-        c.execute("UPDATE leaves SET status = ?, decline_reason = ? WHERE id = ?", (new_status, reason, leave_id))
+        update_data["decline_reason"] = reason
     elif new_status == "Recalled":
-        c.execute("UPDATE leaves SET status = ?, recall_reason = ? WHERE id = ?", (new_status, reason, leave_id))
-    else: # Approved
-        c.execute("UPDATE leaves SET status = ? WHERE id = ?", (new_status, leave_id))
-    conn.commit()
-    conn.close()
+        update_data["recall_reason"] = reason
+    elif new_status == "Withdrawn": # Added for consistency with withdraw_leave
+        update_data["recall_reason"] = reason
+
+    try:
+        response = supabase.table("leaves").update(update_data).eq("id", leave_id).execute()
+        if response.data:
+            return True, f"Leave status updated to {new_status}"
+        return False, "Failed to update leave status"
+    except Exception as e:
+        return False, f"Error updating leave status: {str(e)}"
 
 def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=None):
-    """Fetches all team leaves with optional filters for the manager's dashboard."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    query = """
-        SELECT e.name AS employee_name, l.leave_type, l.start_date, l.end_date, l.status, l.description, l.decline_reason
-        FROM leaves l
-        JOIN employees e ON l.employee_id = e.id
-        WHERE 1=1
-    """
-    params = []
-    if status_filter:
-        placeholders = ','.join('?' * len(status_filter))
-        query += f" AND l.status IN ({placeholders})"
-        params.extend(status_filter)
-    if leave_type_filter:
-        placeholders = ','.join('?' * len(leave_type_filter))
-        query += f" AND l.leave_type IN ({placeholders})"
-        params.extend(leave_type_filter)
-    if employee_filter and employee_filter != "All Team Members":
-        query += " AND e.name = ?"
-        params.append(employee_filter)
-    c.execute(query, params)
-    leaves = c.fetchall()
-    conn.close()
-    return leaves
+    """Fetches all team leaves with optional filters for the manager's dashboard from Supabase."""
+    supabase = init_supabase()
+    try:
+        query = supabase.table("leaves").select(
+            "employee_id, leave_type, start_date, end_date, status, description, decline_reason, employees(name)"
+        )
+
+        if status_filter:
+            query = query.in_("status", status_filter)
+        if leave_type_filter:
+            query = query.in_("leave_type", leave_type_filter)
+        if employee_filter and employee_filter != "All Team Members":
+            # Filter on the 'name' column within the joined 'employees' table
+            query = query.eq("employees.name", employee_filter)
+
+        response = query.execute()
+
+        if response.data:
+            leaves = []
+            for row in response.data:
+                employee_name = row['employees']['name'] if row['employees'] else None
+                leaves.append((
+                    employee_name,
+                    row['leave_type'],
+                    row['start_date'],
+                    row['end_date'],
+                    row['status'],
+                    row['description'],
+                    row.get('decline_reason') # Use .get to safely access if column might be null/missing
+                ))
+            return leaves
+        return []
+    except Exception as e:
+        st.error(f"Error fetching team leaves: {str(e)}")
+        return []
 
 def get_all_employees_from_db():
-    """Gets a unique list of all employees from the employees table."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    c = conn.cursor()
-    c.execute("SELECT DISTINCT name FROM employees ORDER BY name")
-    employees = [row[0] for row in c.fetchall()]
-    conn.close()
-    return employees
+    """Gets a unique list of all employees from the employees table in Supabase."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("employees").select("name").order("name", desc=False).execute()
+        if response.data:
+            employees = [row['name'] for row in response.data]
+            return employees
+        return []
+    except Exception as e:
+        st.error(f"Error fetching employees: {str(e)}")
+        return []
 
 def get_all_leaves():
-    """Fetches all leave records, joining with employee names."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("""
-        SELECT l.id, e.name AS employee_name, l.leave_type, l.start_date, l.end_date, l.description, l.status
-        FROM leaves l
-        JOIN employees e ON l.employee_id = e.id
-    """)
-    rows = c.fetchall()
-    conn.close()
-    leaves = []
-    for row in rows:
-        leaves.append({
-            "id": row["id"],
-            "name": row["employee_name"],
-            "type": row["leave_type"],
-            "start": row["start_date"],
-            "end": row["end_date"],
-            "description": row["description"],
-            "status": row["status"]
-        })
-    return leaves
+    """Fetches all leave records from Supabase, joining with employee names."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("leaves").select(
+            "id, leave_type, start_date, end_date, description, status, employees(name)"
+        ).execute()
+
+        if response.data:
+            leaves = []
+            for row in response.data:
+                employee_name = row['employees']['name'] if row['employees'] else None
+                leaves.append({
+                    "id": row["id"],
+                    "name": employee_name,
+                    "type": row["leave_type"],
+                    "start": row["start_date"],
+                    "end": row["end_date"],
+                    "description": row["description"],
+                    "status": row["status"]
+                })
+            return leaves
+        return []
+    except Exception as e:
+        st.error(f"Error fetching all leaves: {str(e)}")
+        return []
 
 def withdraw_leave(leave_id, recall_reason=None):
-    """Marks a leave request as Withdrawn with an optional reason."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    c = conn.cursor()
-    c.execute("UPDATE leaves SET status = 'Withdrawn', recall_reason = ? WHERE id = ?", (recall_reason, leave_id))
-    conn.commit()
-    conn.close()
+    """Marks a leave request as Withdrawn in Supabase with an optional reason."""
+    # This calls update_leave_status for consistency
+    return update_leave_status(leave_id, "Withdrawn", recall_reason)
 
 def get_latest_leave_entry():
-    """Fetches the details of the most recently added leave entry."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("""
-        SELECT e.name AS employee_name, l.leave_type, l.start_date, l.end_date, l.description, l.status, l.decline_reason, l.recall_reason
-        FROM leaves l
-        JOIN employees e ON l.employee_id = e.id
-        ORDER BY l.id DESC LIMIT 1
-    """)
-    latest_entry = c.fetchone()
-    conn.close()
-    return latest_entry
+    """Fetches the details of the most recently added leave entry from Supabase."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("leaves").select(
+            "leave_type, start_date, end_date, description, status, decline_reason, recall_reason, employees(name)"
+        ).order("id", desc=True).limit(1).execute()
+
+        if response.data:
+            row = response.data[0]
+            employee_name = row['employees']['name'] if row['employees'] else None
+            return {
+                "employee_name": employee_name,
+                "leave_type": row['leave_type'],
+                "start_date": row['start_date'],
+                "end_date": row['end_date'],
+                "description": row['description'],
+                "status": row['status'],
+                "decline_reason": row.get('decline_reason'),
+                "recall_reason": row.get('recall_reason')
+            }
+        return None
+    except Exception as e:
+        st.error(f"Error fetching latest leave entry: {str(e)}")
+        return None
 
 def get_employee_leave_entitlements(employee_id):
-    """Fetches leave entitlements for a given employee."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT * FROM leave_entitlements WHERE employee_id = ?", (employee_id,))
-    entitlements = c.fetchone()
-    conn.close()
-    return entitlements
+    """Fetches leave entitlements for a given employee from Supabase."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("leave_entitlements").select("*").eq("employee_id", employee_id).execute()
+        if response.data:
+            return response.data[0] # Return the first matching record
+        return None
+    except Exception as e:
+        st.error(f"Error fetching employee leave entitlements: {str(e)}")
+        return None
 
 def get_employee_used_leave(employee_id, leave_type=None):
-    """Calculates total used leave days for an employee, optionally by type."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    c = conn.cursor()
-    query = "SELECT SUM(JULIANDAY(end_date) - JULIANDAY(start_date) + 1) FROM leaves WHERE employee_id = ? AND status = 'Approved'"
-    params = [employee_id]
-    if leave_type:
-        query += " AND leave_type = ?"
-        params.append(leave_type)
-    c.execute(query, params)
-    used_days = c.fetchone()[0]
-    conn.close()
-    return int(used_days) if used_days else 0
+    """Calculates total used leave days for an employee, optionally by type, from Supabase."""
+    supabase = init_supabase()
+    try:
+        query = supabase.table("leaves").select("start_date, end_date").eq("employee_id", employee_id).eq("status", "Approved")
+        if leave_type:
+            query = query.eq("leave_type", leave_type)
+
+        response = query.execute()
+        used_days = 0
+        if response.data:
+            for record in response.data:
+                start = datetime.fromisoformat(record['start_date'])
+                end = datetime.fromisoformat(record['end_date'])
+                used_days += (end - start).days + 1 # +1 to include start and end day
+        return int(used_days)
+    except Exception as e:
+        st.error(f"Error calculating used leave: {str(e)}")
+        return 0
 
 # Initialize DB (ensure this runs only once per session)
-if 'db_initialized' not in st.session_state:
-    init_db()
-    st.session_state['db_initialized'] = True
+if 'db_initialized_supabase' not in st.session_state:
+    init_db_supabase()
+    st.session_state['db_initialized_supabase'] = True
 
 st.set_page_config(layout="wide") # Use wide layout for better display
 
