@@ -188,7 +188,7 @@ def get_all_employees_from_db():
     """Gets a unique list of all employees from the employees table in Supabase."""
     supabase = init_supabase()
     try:
-        response = supabase.table("employees").select("name").order("name", desc=False).execute()
+        response = supabase.table("employee_table").select("name").order("name", desc=False).execute()
         if response.data:
             employees = [row['name'] for row in response.data]
             return employees
