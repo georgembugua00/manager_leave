@@ -1,0 +1,178 @@
+# This workflow validates requirements.txt and tests the Streamlit app
+name: Validate Requirements and Test App
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  # Run weekly to catch dependency issues
+  schedule:
+    - cron: '0 0 * * 0'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-requirements:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Validate imports
+        run: |
+          python -c "
+          import streamlit as st
+          from supabase import create_client, Client
+          import pandas as pd
+          print('✅ All required modules imported successfully!')
+          "
+      
+      - name: Check for security vulnerabilities
+        run: |
+          pip install safety
+          safety check
+      
+      - name: Run basic syntax check
+        run: |
+          python -m py_compile Manager/main.py
+          python -m py_compile Manager/team_leaves.py
+          echo "✅ Python syntax check passed!"
+      
+      - name: Test Streamlit app structure
+        run: |
+          # Test that the app can be imported without errors
+          python -c "
+          import sys
+          sys.path.append('Manager')
+          try:
+              import main
+              print('✅ Main app module loads successfully!')
+          except Exception as e:
+              print(f'❌ Error loading main app: {e}')
+              sys.exit(1)
+          "
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Install pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+      
+      - name: Audit dependencies
+        run: |
+          pip install -r requirements.txt
+          pip-audit --desc --output=json --format=json > audit-results.json || true
+          pip-audit --desc
+      
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-audit-results
+          path: audit-results.json
+
+  requirements-format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check requirements.txt format
+        run: |
+          echo "Checking requirements.txt format..."
+          
+          # Check if requirements.txt exists
+          if [ ! -f "requirements.txt" ]; then
+            echo "❌ requirements.txt not found!"
+            exit 1
+          fi
+          
+          # Check for common issues
+          if grep -q "^-e " requirements.txt; then
+            echo "⚠️  Warning: Found editable installs (-e) in requirements.txt"
+          fi
+          
+          if grep -q "git+" requirements.txt; then
+            echo "⚠️  Warning: Found git dependencies in requirements.txt"
+          fi
+          
+          # Check for version pinning
+          if grep -qE "^[a-zA-Z0-9_-]+$" requirements.txt; then
+            echo "⚠️  Warning: Found unpinned dependencies (consider pinning versions)"
+          fi
+          
+          echo "✅ Requirements.txt format check completed!"
+      
+      - name: Display requirements.txt content
+        run: |
+          echo "📄 Current requirements.txt:"
+          cat requirements.txt
+
+  streamlit-config-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check Streamlit configuration
+        run: |
+          echo "Checking Streamlit configuration..."
+          
+          # Check for .streamlit directory
+          if [ -d ".streamlit" ]; then
+            echo "✅ .streamlit directory found"
+            
+            # Check for config files
+            if [ -f ".streamlit/config.toml" ]; then
+              echo "✅ config.toml found"
+              echo "📄 Config content:"
+              cat .streamlit/config.toml
+            fi
+            
+            if [ -f ".streamlit/secrets.toml" ]; then
+              echo "⚠️  Warning: secrets.toml found in repository (should be in .gitignore)"
+            fi
+          else
+            echo "ℹ️  No .streamlit directory found (optional)"
+          fi
+          
+          # Check for pages directory structure
+          if [ -d "pages" ]; then
+            echo "✅ Pages directory found"
+            echo "📁 Pages structure:"
+            ls -la pages/
+          fi
