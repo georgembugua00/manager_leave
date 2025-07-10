@@ -31,7 +31,7 @@ def init_db():
 
 def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=None):
     """Fetches all team leaves with optional filters for the manager's dashboard."""
-    conn = sqlite3.connect('/Users/danielwanganga/Documents/Airtel_AI/leave_management.db')
+    conn = sqlite3.connect('leave_management.db')
     c = conn.cursor()
     
     query = "SELECT employee_name, leave_type, start_date, end_date, status, description, decline_reason FROM leaves WHERE 1=1"
