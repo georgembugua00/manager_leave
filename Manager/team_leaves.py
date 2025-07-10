@@ -10,7 +10,7 @@ from datetime import date
 
 def init_db():
     """Initializes the SQLite database and creates the leaves table if it doesn't exist."""
-    conn = sqlite3.connect('/Users/danielwanganga/Documents/Airtel_AI/leave_management.db')
+    conn = sqlite3.connect('leave_management.db')
     c = conn.cursor()
     c.execute('''
         CREATE TABLE IF NOT EXISTS leaves (
