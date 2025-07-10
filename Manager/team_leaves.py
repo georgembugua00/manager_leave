@@ -56,7 +56,7 @@ def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=
 
 def get_all_employees():
     """Gets a unique list of all employees who have applied for leave."""
-    conn = sqlite3.connect('/Users/danielwanganga/Documents/Airtel_AI/leave_management.db')
+    conn = sqlite3.connect('leave_management.db')
     c = conn.cursor()
     c.execute("SELECT DISTINCT employee_name FROM leaves")
     employees = [row[0] for row in c.fetchall()]
@@ -65,7 +65,7 @@ def get_all_employees():
 
 def get_leave_history(employee_name):
     """Fetches the leave history for a specific employee."""
-    conn = sqlite3.connect('/Users/danielwanganga/Documents/Airtel_AI/leave_management.db')
+    conn = sqlite3.connect('leave_management.db')
     c = conn.cursor()
     c.execute("SELECT leave_type, start_date, end_date, description, status FROM leaves WHERE employee_name = ?", (employee_name,))
     history = c.fetchall()
