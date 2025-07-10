@@ -15,8 +15,9 @@ import pandas as pd
 @st.cache_resource
 def init_supabase():
     """Initialize Supabase client with credentials from Streamlit secrets."""
-    url = st.secrets["https://supabase.com/dashboard/project/nzgdiyjdrfludykkzxiv/editor/17269?schema=public"]
-    key = st.secrets["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im56Z2RpeWpkcmZsdWR5a2t6eGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIxMzYxNjQsImV4cCI6MjA2NzcxMjE2NH0.3lGOGA3FwOuLraw1Uv5-6BJ_iecrY5O9mN3RbXard7k"]
+    # Use the simple, descriptive keys from secrets.toml
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
     supabase: Client = create_client(url, key)
     return supabase
 
