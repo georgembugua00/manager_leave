@@ -87,7 +87,7 @@ def get_all_pending_leaves():
             pending_leaves = []
             for row in response.data:
                 # Extract employee name from the nested 'employees' dictionary
-                employee_name = row['employees']['name'] if row['employees'] else None
+                employee_name = row['employee_table']['First_Name'] if row['employee_table'] else None
                 pending_leaves.append({
                     "id": row['AUUID'],
                     "employee_name": employee_name,
@@ -113,7 +113,7 @@ def get_approved_leaves():
         if response.data:
             approved_leaves = []
             for row in response.data:
-                employee_name = row['employees']['name'] if row['employees'] else None
+                employee_name = row['employee_table']['First_Name'] if row['employee_table'] else None
                 approved_leaves.append({
                     "id": row['AUUID'],
                     "employee_name": employee_name,
@@ -140,7 +140,7 @@ def update_leave_status(leave_id, new_status, reason=None):
         update_data["recall_reason"] = reason
 
     try:
-        response = supabase.table("off_roll_leave").update(update_data).eq("id", leave_id).execute()
+        response = supabase.table("off_roll_leave").update(update_data).eq("employee_id", leave_id).execute()
         if response.data:
             return True, f"Leave status updated to {new_status}"
         return False, "Failed to update leave status"
@@ -161,14 +161,14 @@ def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=
             query = query.in_("leave_type", leave_type_filter)
         if employee_filter and employee_filter != "All Team Members":
             # Filter on the 'name' column within the joined 'employees' table
-            query = query.eq("employees.name", employee_filter)
+            query = query.eq("employee_table.First_Name", employee_filter)
 
         response = query.execute()
 
         if response.data:
             leaves = []
             for row in response.data:
-                employee_name = row['employees']['name'] if row['employees'] else None
+                employee_name = row['employee_table']['First_Name'] if row['employee_table'] else None
                 leaves.append((
                     employee_name,
                     row['leave_type'],
@@ -190,7 +190,7 @@ def get_all_employees_from_db():
     try:
         response = supabase.table("employee_table").select("First_Name").order("First_Name", desc=False).execute()
         if response.data:
-            employees = [row['name'] for row in response.data]
+            employees = [row['First_Name'] for row in response.data]
             return employees
         return []
     except Exception as e:
@@ -208,7 +208,7 @@ def get_all_leaves():
         if response.data:
             leaves = []
             for row in response.data:
-                employee_name = row['employees']['name'] if row['employees'] else None
+                employee_name = row['employee_table']['First Name'] if row['employee_table'] else None
                 leaves.append({
                     "id": row["AUUID"],
                     "name": employee_name,
@@ -234,12 +234,12 @@ def get_latest_leave_entry():
     supabase = init_supabase()
     try:
         response = supabase.table("off_roll_leave").select(
-            "leave_type, start_date, end_date, description, status, decline_reason, recall_reason, employee_table(employee_name)"
+            "leave_type, start_date, end_date, description, status, decline_reason, recall_reason, employee_table(First_Name)"
         ).order("id", desc=True).limit(1).execute()
 
         if response.data:
             row = response.data[0]
-            employee_name = row['employees']['name'] if row['employees'] else None
+            employee_name = row['employee_table']['First_Name'] if row['employees'] else None
             return {
                 "employee_name": employee_name,
                 "leave_type": row['leave_type'],
@@ -271,7 +271,7 @@ def get_employee_used_leave(employee_id, leave_type=None):
     """Calculates total used leave days for an employee, optionally by type, from Supabase."""
     supabase = init_supabase()
     try:
-        query = supabase.table("leaves").select("start_date, end_date").eq("employee_id", employee_id).eq("status", "Approved")
+        query = supabase.table("off_roll_leave").select("start_date, end_date").eq("employee_id", employee_id).eq("status", "Approved")
         if leave_type:
             query = query.eq("leave_type", leave_type)
 
