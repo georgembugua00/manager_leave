@@ -158,9 +158,8 @@ def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=
         if status_filter:
             query = query.in_("status", status_filter)
         if leave_type_filter:
-            query = query.in_("leave_type", leave_type_filter)
+            query = query.in_("leave_type", leave_type_filter) # Corrected potential typo: ensure it's not `query = query = query.in_`
         if employee_filter and employee_filter != "All Team Members":
-            # Filter on the 'name' column within the joined 'employees' table
             query = query.eq("employee_table.First_Name", employee_filter)
 
         response = query.execute()
@@ -169,14 +168,14 @@ def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=
             leaves = []
             for row in response.data:
                 employee_name = row['employee_table']['First_Name'] if row['employee_table'] else None
-                leaves.append({
-                    employee_name,
-                    row['leave_type'],
-                    row['start_date'],
-                    row['end_date'],
-                    row['status'],
-                    row['description'],
-                    row.get('decline_reason') # Use .get to safely access if column might be null/missing
+                leaves.append({ # <--- THIS IS THE KEY CHANGE! Now creating a dictionary
+                    "employee_name": employee_name, # Add the key "employee_name":
+                    "leave_type": row['leave_type'],
+                    "start_date": row['start_date'],
+                    "end_date": row['end_date'],
+                    "status": row['status'],
+                    "description": row['description'],
+                    "decline_reason": row.get('decline_reason')
                 })
             return leaves
         return []
