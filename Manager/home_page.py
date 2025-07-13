@@ -32,7 +32,7 @@ def apply_for_leave(employee_id, leave_type, start_date, end_date, description, 
     """Adds a new leave application to the Supabase database."""
     supabase = init_supabase()
     try:
-        response = supabase.table("leave_table").insert({
+        response = supabase.table("off_roll_leave").insert({
             "employee_id": employee_id,
             "leave_type": leave_type,
             "start_date": start_date.isoformat(),
@@ -51,7 +51,7 @@ def get_leave_history(employee_id):
     """Fetches the leave history for a specific employee from Supabase."""
     supabase = init_supabase()
     try:
-        response = supabase.table("leave_table").select(
+        response = supabase.table("off_roll_leave").select(
             "leave_type, start_date, end_date, description, status, decline_reason, recall_reason"
         ).eq("employee_id", employee_id).order("start_date", desc=True).execute()
 
@@ -79,7 +79,7 @@ def get_all_pending_leaves():
     supabase = init_supabase()
     try:
         # Join leaves with employees to get employee name
-        response = supabase.table("leave_table").select(
+        response = supabase.table("off_roll_leave").select(
             "id, employee_id, leave_type, start_date, end_date, description, employees(name)"
         ).eq("status", "Pending").execute()
 
@@ -106,7 +106,7 @@ def get_approved_leaves():
     """Fetches all leave requests with an 'Approved' status from Supabase."""
     supabase = init_supabase()
     try:
-        response = supabase.table("leave_table").select(
+        response = supabase.table("off_roll_leave").select(
             "id, employee_id, leave_type, start_date, end_date, description, employees(name)"
         ).eq("status", "Approved").execute()
 
@@ -140,7 +140,7 @@ def update_leave_status(leave_id, new_status, reason=None):
         update_data["recall_reason"] = reason
 
     try:
-        response = supabase.table("leave_table").update(update_data).eq("id", leave_id).execute()
+        response = supabase.table("off_roll_leave").update(update_data).eq("id", leave_id).execute()
         if response.data:
             return True, f"Leave status updated to {new_status}"
         return False, "Failed to update leave status"
@@ -151,7 +151,7 @@ def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=
     """Fetches all team leaves with optional filters for the manager's dashboard from Supabase."""
     supabase = init_supabase()
     try:
-        query = supabase.table("leave_table").select(
+        query = supabase.table("off_roll_leave").select(
             "employee_id, leave_type, start_date, end_date, status, description, decline_reason, employees(name)"
         )
 
@@ -201,7 +201,7 @@ def get_all_leaves():
     """Fetches all leave records from Supabase, joining with employee names."""
     supabase = init_supabase()
     try:
-        response = supabase.table("leave_table").select(
+        response = supabase.table("off_roll_leave").select(
             "id, leave_type, start_date, end_date, description, status, employees(name)"
         ).execute()
 
@@ -233,7 +233,7 @@ def get_latest_leave_entry():
     """Fetches the details of the most recently added leave entry from Supabase."""
     supabase = init_supabase()
     try:
-        response = supabase.table("leave_table").select(
+        response = supabase.table("off_roll_leave").select(
             "leave_type, start_date, end_date, description, status, decline_reason, recall_reason, employees(name)"
         ).order("id", desc=True).limit(1).execute()
 
