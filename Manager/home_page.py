@@ -19,7 +19,7 @@ def get_employee_by_name(employee_name):
     """Fetches employee details by name from Supabase."""
     supabase = init_supabase()
     try:
-        response = supabase.table("employee_table").select("id, name").eq("name", employee_name).execute()
+        response = supabase.table("employee_table").select("AUUID, First_Name").eq("First_Name", employee_name).execute()
         if response.data:
             # Supabase returns a list of dictionaries, fetchone equivalent
             return response.data[0]
@@ -107,7 +107,7 @@ def get_approved_leaves():
     supabase = init_supabase()
     try:
         response = supabase.table("off_roll_leave").select(
-            "id, employee_id, leave_type, start_date, end_date, description, employee_table(First_Name)"
+            "AUUID, employee_id, leave_type, start_date, end_date, description, employee_table(First_Name)"
         ).eq("status", "Approved").execute()
 
         if response.data:
@@ -115,7 +115,7 @@ def get_approved_leaves():
             for row in response.data:
                 employee_name = row['employees']['name'] if row['employees'] else None
                 approved_leaves.append({
-                    "id": row['id'],
+                    "id": row['AUUID'],
                     "employee_name": employee_name,
                     "leave_type": row['leave_type'],
                     "start_date": row['start_date'],
@@ -152,7 +152,7 @@ def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=
     supabase = init_supabase()
     try:
         query = supabase.table("off_roll_leave").select(
-            "employee_id, leave_type, start_date, end_date, status, description, decline_reason, employee_table(employee_name)"
+            "employee_id, leave_type, start_date, end_date, status, description, decline_reason, employee_table(First_Name)"
         )
 
         if status_filter:
@@ -188,7 +188,7 @@ def get_all_employees_from_db():
     """Gets a unique list of all employees from the employees table in Supabase."""
     supabase = init_supabase()
     try:
-        response = supabase.table("employee_table").select("name").order("name", desc=False).execute()
+        response = supabase.table("employee_table").select("First_Name").order("First_Name", desc=False).execute()
         if response.data:
             employees = [row['name'] for row in response.data]
             return employees
@@ -202,7 +202,7 @@ def get_all_leaves():
     supabase = init_supabase()
     try:
         response = supabase.table("off_roll_leave").select(
-            "id, leave_type, start_date, end_date, description, status, employee_table(employee_name)"
+            "AUUID, leave_type, start_date, end_date, description, status, employee_table(First_Name)"
         ).execute()
 
         if response.data:
