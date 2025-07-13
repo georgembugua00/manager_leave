@@ -15,107 +15,55 @@ import pandas as pd
 @st.cache_resource
 def init_supabase():
     """Initialize Supabase client with credentials from Streamlit secrets."""
-    # Use the simple, descriptive keys from secrets.toml
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
     supabase: Client = create_client(url, key)
     return supabase
 
-def init_db():
-    """
-    Creates the leaves table in Supabase if it doesn't exist.
-    Note: In Supabase, you typically create tables through the dashboard or SQL editor.
-    This function is for reference - you'll need to run this SQL in your Supabase SQL editor:
-    
-    CREATE TABLE IF NOT EXISTS leaves (
-        id SERIAL PRIMARY KEY,
-        employee_name TEXT NOT NULL,
-        leave_type TEXT NOT NULL,
-        start_date DATE NOT NULL,
-        end_date DATE NOT NULL,
-        description TEXT,
-        attachment BOOLEAN DEFAULT FALSE,
-        status TEXT NOT NULL,
-        decline_reason TEXT,
-        recall_reason TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    );
-    """
-    st.info("Table should be created in Supabase dashboard. See function docstring for SQL.")
 
-def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=None):
-    """Fetches all team leaves with optional filters for the manager's dashboard."""
+
+def get_employee_by_name(employee_name):
+    """Fetches employee details by name from Supabase."""
     supabase = init_supabase()
-    
     try:
-        # Start with base query
-        query = supabase.table("leave_table").select(
-            "employee_name, leave_type, start_date, end_date, status, description, decline_reason"
-        )
-        
-        # Apply filters
-        if status_filter:
-            query = query.in_("status", status_filter)
-            
-        if leave_type_filter:
-            query = query.in_("leave_type", leave_type_filter)
-            
-        if employee_filter and employee_filter != "All Team Members":
-            query = query.eq("employee_name", employee_filter)
-        
-        # Execute query
-        response = query.execute()
-        
+        response = supabase.table("employee_table").select("AUUID, First_Name").eq("First_Name", employee_name).execute()
         if response.data:
-            # Convert to list of tuples to match original format
-            leaves = []
-            for row in response.data:
-                leaves.append((
-                    row['employee_name'],
-                    row['leave_type'],
-                    row['start_date'],
-                    row['end_date'],
-                    row['status'],
-                    row['description'],
-                    row['decline_reason']
-                ))
-            return leaves
-        else:
-            return []
-            
+            # Supabase returns a list of dictionaries, fetchone equivalent
+            return response.data[0]
+        return None
     except Exception as e:
-        st.error(f"Error fetching team leaves: {str(e)}")
-        return []
+        st.error(f"Error fetching employee by name: {str(e)}")
+        return None
 
-def get_all_employees():
-    """Gets a unique list of all employees who have applied for leave."""
+def apply_for_leave(employee_id, leave_type, start_date, end_date, description, attachment):
+    """Adds a new leave application to the Supabase database."""
     supabase = init_supabase()
-    
     try:
-        response = supabase.table("leave_table").select("employee_name").execute()
-        
+        response = supabase.table("off_roll_leave").insert({
+            "employee_id": employee_id,
+            "leave_type": leave_type,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "description": description,
+            "attachment": bool(attachment),
+            "status": "Pending"
+        }).execute()
         if response.data:
-            # Extract unique employee names
-            employees = list(set(row['employee_name'] for row in response.data))
-            return sorted(employees)  # Sort for better UX
-        else:
-            return []
-            
+            return True, "Leave request submitted successfully!"
+        return False, "Failed to submit leave request"
     except Exception as e:
-        st.error(f"Error fetching employees: {str(e)}")
-        return []
+        return False, f"Error submitting leave request: {str(e)}"
 
-def get_leave_history(employee_name):
-    """Fetches the leave history for a specific employee."""
+def get_leave_history(employee_id):
+    """Fetches the leave history for a specific employee from Supabase."""
     supabase = init_supabase()
-    
     try:
-        response = supabase.table("leave_table").select(
-            "leave_type, start_date, end_date, description, status"
-        ).eq("employee_name", employee_name).order("start_date", desc=True).execute()
-        
+        response = supabase.table("off_roll_leave").select(
+            "leave_type, start_date, end_date, description, status, decline_reason, recall_leave"
+        ).eq("employee_id", employee_id).order("start_date", desc=True).execute()
+
         if response.data:
-            # Convert to list of tuples to match original format
+            # Convert to list of tuples for consistency with original SQLite output format
             history = []
             for row in response.data:
                 history.append((
@@ -123,94 +71,227 @@ def get_leave_history(employee_name):
                     row['start_date'],
                     row['end_date'],
                     row['description'],
-                    row['status']
+                    row['status'],
+                    row.get('decline_reason'),
+                    row.get('recall_reason')
                 ))
             return history
-        else:
-            return []
-            
+        return []
     except Exception as e:
         st.error(f"Error fetching leave history: {str(e)}")
         return []
 
-# Additional helper functions for complete leave management
-
-def submit_leave_request(employee_name, leave_type, start_date, end_date, description="", attachment=False):
-    """Submit a new leave request."""
+def get_all_pending_leaves():
+    """Fetches all leave requests with a 'Pending' status for the manager from Supabase."""
     supabase = init_supabase()
-    
     try:
-        response = supabase.table("leave_table").insert({
-            "employee_name": employee_name,
-            "leave_type": leave_type,
-            "start_date": start_date.isoformat() if hasattr(start_date, 'isoformat') else start_date,
-            "end_date": end_date.isoformat() if hasattr(end_date, 'isoformat') else end_date,
-            "description": description,
-            "attachment": attachment,
-            "status": "Pending"
-        }).execute()
-        
-        if response.data:
-            return True, "Leave request submitted successfully!"
-        else:
-            return False, "Failed to submit leave request"
-            
-    except Exception as e:
-        return False, f"Error submitting leave request: {str(e)}"
+        # Join leaves with employees to get employee name
+        response = supabase.table("off_roll_leave").select(
+            "AUUID, employee_id, leave_type, start_date, end_date, description, employee_table(First_Name)"
+        ).eq("status", "Pending").execute()
 
-def update_leave_status(leave_id, new_status, decline_reason=None, recall_reason=None):
-    """Update the status of a leave request."""
-    supabase = init_supabase()
-    
-    try:
-        update_data = {"status": new_status}
-        
-        if decline_reason:
-            update_data["decline_reason"] = decline_reason
-        if recall_reason:
-            update_data["recall_reason"] = recall_reason
-            
-        response = supabase.table("leave_table").update(update_data).eq("id", leave_id).execute()
-        
         if response.data:
-            return True, f"Leave status updated to {new_status}"
-        else:
-            return False, "Failed to update leave status"
-            
-    except Exception as e:
-        return False, f"Error updating leave status: {str(e)}"
-
-def get_leave_by_id(leave_id):
-    """Get a specific leave request by ID."""
-    supabase = init_supabase()
-    
-    try:
-        response = supabase.table("leave_table").select("*").eq("id", leave_id).execute()
-        
-        if response.data:
-            return response.data[0]
-        else:
-            return None
-            
-    except Exception as e:
-        st.error(f"Error fetching leave by ID: {str(e)}")
-        return None
-
-def get_pending_leaves():
-    """Get all pending leave requests for manager approval."""
-    supabase = init_supabase()
-    
-    try:
-        response = supabase.table("leave_table").select("*").eq("status", "Pending").order("created_at", desc=False).execute()
-        
-        if response.data:
-            return response.data
-        else:
-            return []
-            
+            pending_leaves = []
+            for row in response.data:
+                # Extract employee name from the nested 'employees' dictionary
+                employee_name = row['employee_table']['First_Name'] if row['employee_table'] else None
+                pending_leaves.append({
+                    "id": row['AUUID'],
+                    "employee_name": employee_name,
+                    "leave_type": row['leave_type'],
+                    "start_date": row['start_date'],
+                    "end_date": row['end_date'],
+                    "description": row['description']
+                })
+            return pending_leaves
+        return []
     except Exception as e:
         st.error(f"Error fetching pending leaves: {str(e)}")
         return []
+
+def get_approved_leaves():
+    """Fetches all leave requests with an 'Approved' status from Supabase."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("off_roll_leave").select(
+            "AUUID, employee_id, leave_type, start_date, end_date, description, employee_table(First_Name)"
+        ).eq("status", "Approved").execute()
+
+        if response.data:
+            approved_leaves = []
+            for row in response.data:
+                employee_name = row['employee_table']['First_Name'] if row['employee_table'] else None
+                approved_leaves.append({
+                    "id": row['AUUID'],
+                    "employee_name": employee_name,
+                    "leave_type": row['leave_type'],
+                    "start_date": row['start_date'],
+                    "end_date": row['end_date'],
+                    "description": row['description']
+                })
+            return approved_leaves
+        return []
+    except Exception as e:
+        st.error(f"Error fetching approved leaves: {str(e)}")
+        return []
+
+def update_leave_status(leave_id, new_status, reason=None):
+    """Updates the status of a leave request in Supabase."""
+    supabase = init_supabase()
+    update_data = {"status": new_status}
+    if new_status == "Declined":
+        update_data["decline_reason"] = reason
+    elif new_status == "Recalled":
+        update_data["recall_reason"] = reason
+    elif new_status == "Withdrawn": # Added for consistency with withdraw_leave
+        update_data["recall_reason"] = reason
+
+    try:
+        response = supabase.table("off_roll_leave").update(update_data).eq("employee_id", leave_id).execute()
+        if response.data:
+            return True, f"Leave status updated to {new_status}"
+        return False, "Failed to update leave status"
+    except Exception as e:
+        return False, f"Error updating leave status: {str(e)}"
+
+def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=None):
+    """Fetches all team leaves with optional filters for the manager's dashboard from Supabase."""
+    supabase = init_supabase()
+    try:
+        query = supabase.table("off_roll_leave").select(
+            "employee_id, leave_type, start_date, end_date, status, description, decline_reason, employee_table(First_Name)"
+        )
+
+        if status_filter:
+            query = query.in_("status", status_filter)
+        if leave_type_filter:
+            query = query.in_("leave_type", leave_type_filter) # Corrected potential typo: ensure it's not `query = query = query.in_`
+        if employee_filter and employee_filter != "All Team Members":
+            query = query.eq("employee_table.First_Name", employee_filter)
+
+        response = query.execute()
+
+        if response.data:
+            leaves = []
+            for row in response.data:
+                employee_name = row['employee_table']['First_Name'] if row['employee_table'] else None
+                leaves.append({ # <--- THIS IS THE KEY CHANGE! Now creating a dictionary
+                    "employee_name": employee_name, # Add the key "employee_name":
+                    "leave_type": row['leave_type'],
+                    "start_date": row['start_date'],
+                    "end_date": row['end_date'],
+                    "status": row['status'],
+                    "description": row['description'],
+                    "decline_reason": row.get('decline_reason')
+                })
+            return leaves
+        return []
+    except Exception as e:
+        st.error(f"Error fetching team leaves: {str(e)}")
+        return []
+
+def get_all_employees_from_db():
+    """Gets a unique list of all employees from the employees table in Supabase."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("employee_table").select("First_Name").order("First_Name", desc=False).execute()
+        if response.data:
+            employees = [row['First_Name'] for row in response.data]
+            return employees
+        return []
+    except Exception as e:
+        st.error(f"Error fetching employees: {str(e)}")
+        return []
+
+def get_all_leaves():
+    """Fetches all leave records from Supabase, joining with employee names."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("off_roll_leave").select(
+            "AUUID, leave_type, start_date, end_date, description, status, employee_table(First_Name)"
+        ).execute()
+
+        if response.data:
+            leaves = []
+            for row in response.data:
+                employee_name = row['employee_table']['First Name'] if row['employee_table'] else None
+                leaves.append({
+                    "id": row["AUUID"],
+                    "name": employee_name,
+                    "type": row["leave_type"],
+                    "start": row["start_date"],
+                    "end": row["end_date"],
+                    "description": row["description"],
+                    "status": row["status"]
+                })
+            return leaves
+        return []
+    except Exception as e:
+        st.error(f"Error fetching all leaves: {str(e)}")
+        return []
+
+def withdraw_leave(leave_id, recall_reason=None):
+    """Marks a leave request as Withdrawn in Supabase with an optional reason."""
+    # This calls update_leave_status for consistency
+    return update_leave_status(leave_id, "Withdrawn", recall_reason)
+
+def get_latest_leave_entry():
+    """Fetches the details of the most recently added leave entry from Supabase."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("off_roll_leave").select(
+            "leave_type, start_date, end_date, description, status, decline_reason, recall_reason, employee_table(First_Name)"
+        ).order("id", desc=True).limit(1).execute()
+
+        if response.data:
+            row = response.data[0]
+            employee_name = row['employee_table']['First_Name'] if row['employees'] else None
+            return {
+                "employee_name": employee_name,
+                "leave_type": row['leave_type'],
+                "start_date": row['start_date'],
+                "end_date": row['end_date'],
+                "description": row['description'],
+                "status": row['status'],
+                "decline_reason": row.get('decline_reason'),
+                "recall_reason": row.get('recall_reason')
+            }
+        return None
+    except Exception as e:
+        st.error(f"Error fetching latest leave entry: {str(e)}")
+        return None
+
+def get_employee_leave_entitlements(employee_id):
+    """Fetches leave entitlements for a given employee from Supabase."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("leave_entitlements").select("*").eq("employee_id", employee_id).execute()
+        if response.data:
+            return response.data[0] # Return the first matching record
+        return None
+    except Exception as e:
+        st.error(f"Error fetching employee leave entitlements: {str(e)}")
+        return None
+
+def get_employee_used_leave(employee_id, leave_type=None):
+    """Calculates total used leave days for an employee, optionally by type, from Supabase."""
+    supabase = init_supabase()
+    try:
+        query = supabase.table("off_roll_leave").select("start_date, end_date").eq("employee_id", employee_id).eq("status", "Approved")
+        if leave_type:
+            query = query.eq("leave_type", leave_type)
+
+        response = query.execute()
+        used_days = 0
+        if response.data:
+            for record in response.data:
+                start = datetime.fromisoformat(record['start_date'])
+                end = datetime.fromisoformat(record['end_date'])
+                used_days += (end - start).days + 1 # +1 to include start and end day
+        return int(used_days)
+    except Exception as e:
+        st.error(f"Error calculating used leave: {str(e)}")
+        return 0
 
 # Initialize the database (run once)
 # Note: You'll need to create the table in Supabase dashboard first
