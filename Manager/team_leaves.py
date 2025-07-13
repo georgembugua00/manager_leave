@@ -796,9 +796,9 @@ approved_leaves = get_team_leaves(status_filter=["Approved"])
 events = []
 for leave in approved_leaves:
     events.append({
-                    "title": f"{leave[0]} - {leave[1]}",
-                    "start": leave[2],
-                    "end": leave[3],
+                    "title": f"{leave["employee_name"]} - {leave["leave_type"]}",
+                    "start": leave["start_date"],
+                    "end": leave["end_date"],
         })
             
             # If you have streamlit_calendar installed
