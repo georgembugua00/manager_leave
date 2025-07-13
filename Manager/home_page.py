@@ -80,7 +80,7 @@ def get_all_pending_leaves():
     try:
         # Join leaves with employees to get employee name
         response = supabase.table("off_roll_leave").select(
-            "id, employee_id, leave_type, start_date, end_date, description, employees(name)"
+            "id, employee_id, leave_type, start_date, end_date, description, employee_table(employee_name)"
         ).eq("status", "Pending").execute()
 
         if response.data:
@@ -107,7 +107,7 @@ def get_approved_leaves():
     supabase = init_supabase()
     try:
         response = supabase.table("off_roll_leave").select(
-            "id, employee_id, leave_type, start_date, end_date, description, employees(name)"
+            "id, employee_id, leave_type, start_date, end_date, description, employee_table(employee_name)"
         ).eq("status", "Approved").execute()
 
         if response.data:
@@ -152,7 +152,7 @@ def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=
     supabase = init_supabase()
     try:
         query = supabase.table("off_roll_leave").select(
-            "employee_id, leave_type, start_date, end_date, status, description, decline_reason, employees(name)"
+            "employee_id, leave_type, start_date, end_date, status, description, decline_reason, employee_table(employee_name)"
         )
 
         if status_filter:
@@ -202,7 +202,7 @@ def get_all_leaves():
     supabase = init_supabase()
     try:
         response = supabase.table("off_roll_leave").select(
-            "id, leave_type, start_date, end_date, description, status, employees(name)"
+            "id, leave_type, start_date, end_date, description, status, employee_table(employee_name)"
         ).execute()
 
         if response.data:
@@ -234,7 +234,7 @@ def get_latest_leave_entry():
     supabase = init_supabase()
     try:
         response = supabase.table("off_roll_leave").select(
-            "leave_type, start_date, end_date, description, status, decline_reason, recall_reason, employees(name)"
+            "leave_type, start_date, end_date, description, status, decline_reason, recall_reason, employee_table(employee_name)"
         ).order("id", desc=True).limit(1).execute()
 
         if response.data:
