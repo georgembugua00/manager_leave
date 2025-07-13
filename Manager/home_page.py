@@ -169,7 +169,7 @@ def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=
             leaves = []
             for row in response.data:
                 employee_name = row['employee_table']['First_Name'] if row['employee_table'] else None
-                leaves.append((
+                leaves.append({
                     employee_name,
                     row['leave_type'],
                     row['start_date'],
@@ -177,7 +177,7 @@ def get_team_leaves(status_filter=None, leave_type_filter=None, employee_filter=
                     row['status'],
                     row['description'],
                     row.get('decline_reason') # Use .get to safely access if column might be null/missing
-                ))
+                })
             return leaves
         return []
     except Exception as e:
