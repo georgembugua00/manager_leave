@@ -52,7 +52,7 @@ def get_leave_history(employee_id):
     supabase = init_supabase()
     try:
         response = supabase.table("off_roll_leave").select(
-            "leave_type, start_date, end_date, description, status, decline_reason, recall_reason"
+            "leave_type, start_date, end_date, description, status, decline_reason, recall_leave"
         ).eq("employee_id", employee_id).order("start_date", desc=True).execute()
 
         if response.data:
