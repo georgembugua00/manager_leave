@@ -80,7 +80,7 @@ def get_all_pending_leaves():
     try:
         # Join leaves with employees to get employee name
         response = supabase.table("off_roll_leave").select(
-            "id, employee_id, leave_type, start_date, end_date, description, employee_table(First_Name)"
+            "AUUID, employee_id, leave_type, start_date, end_date, description, employee_table(First_Name)"
         ).eq("status", "Pending").execute()
 
         if response.data:
@@ -89,7 +89,7 @@ def get_all_pending_leaves():
                 # Extract employee name from the nested 'employees' dictionary
                 employee_name = row['employees']['name'] if row['employees'] else None
                 pending_leaves.append({
-                    "id": row['id'],
+                    "id": row['AUUID'],
                     "employee_name": employee_name,
                     "leave_type": row['leave_type'],
                     "start_date": row['start_date'],
@@ -210,7 +210,7 @@ def get_all_leaves():
             for row in response.data:
                 employee_name = row['employees']['name'] if row['employees'] else None
                 leaves.append({
-                    "id": row["id"],
+                    "id": row["AUUID"],
                     "name": employee_name,
                     "type": row["leave_type"],
                     "start": row["start_date"],
