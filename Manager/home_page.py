@@ -80,7 +80,7 @@ def get_all_pending_leaves():
     try:
         # Join leaves with employees to get employee name
         response = supabase.table("off_roll_leave").select(
-            "id, employee_id, leave_type, start_date, end_date, description, employee_table(employee_name)"
+            "id, employee_id, leave_type, start_date, end_date, description, employee_table(First_Name)"
         ).eq("status", "Pending").execute()
 
         if response.data:
@@ -107,7 +107,7 @@ def get_approved_leaves():
     supabase = init_supabase()
     try:
         response = supabase.table("off_roll_leave").select(
-            "id, employee_id, leave_type, start_date, end_date, description, employee_table(First_name)"
+            "id, employee_id, leave_type, start_date, end_date, description, employee_table(First_Name)"
         ).eq("status", "Approved").execute()
 
         if response.data:
