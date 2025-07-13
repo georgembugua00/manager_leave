@@ -107,7 +107,7 @@ def get_approved_leaves():
     supabase = init_supabase()
     try:
         response = supabase.table("off_roll_leave").select(
-            "id, employee_id, leave_type, start_date, end_date, description, employee_table(employee_name)"
+            "id, employee_id, leave_type, start_date, end_date, description, employee_table(First_name)"
         ).eq("status", "Approved").execute()
 
         if response.data:
