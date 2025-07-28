@@ -89,7 +89,7 @@ def get_all_pending_leaves():
                 # Extract employee name from the nested 'employees' dictionary
                 employee_name = row['employee_table']['First_Name'] if row['employee_table'] else None
                 pending_leaves.append({
-                    "id": row['uuid'],
+                    "id": row['employee_id'],
                     "employee_name": employee_name,
                     "leave_type": row['leave_type'],
                     "start_date": row['start_date'],
