@@ -128,7 +128,7 @@ def get_approved_leaves():
         st.error(f"Error fetching approved leaves: {str(e)}")
         return []
 
-def update_leave_status(leave_id, new_status, reason=None):
+def update_leave_status(employee_id, new_status, reason=None):
     """Updates the status of a leave request in Supabase."""
     supabase = init_supabase()
     update_data = {"status": new_status}
@@ -140,7 +140,7 @@ def update_leave_status(leave_id, new_status, reason=None):
         update_data["recall_reason"] = reason
 
     try:
-        response = supabase.table("off_roll_leave").update(update_data).eq("employee_id", leave_id).execute()
+        response = supabase.table("off_roll_leave").update(update_data).eq("employee_id", employee_id).execute()
         if response.data:
             return True, f"Leave status updated to {new_status}"
         return False, "Failed to update leave status"
@@ -226,7 +226,7 @@ def get_all_leaves():
 def withdraw_leave(leave_id, recall_reason=None):
     """Marks a leave request as Withdrawn in Supabase with an optional reason."""
     # This calls update_leave_status for consistency
-    return update_leave_status(leave_id, "Withdrawn", recall_reason)
+    return update_leave_status(employee_id, "Withdrawn", recall_reason)
 
 def get_latest_leave_entry():
     """Fetches the details of the most recently added leave entry from Supabase."""
@@ -361,7 +361,7 @@ def pending_leaves_view():
 
     for leave in pending_leaves:
         # Access by key name since row_factory is set to sqlite3.Row
-        leave_id = leave["id"]
+        leave_id = leave["employee_id"]
         employee = leave["employee_name"]
         leave_type = leave["leave_type"]
         start_date = leave["start_date"]
@@ -376,21 +376,21 @@ def pending_leaves_view():
 
             col1, col2 = st.columns([1, 1])
             with col1:
-                if st.button("✅ Approve", key=f"approve_{leave_id}"):
-                    update_leave_status(leave_id, "Approved")
+                if st.button("✅ Approve", key=f"approve_{employee_id}"):
+                    update_leave_status(employee_id, "Approved")
                     st.success(f"Leave for {employee} approved.")
                     st.rerun()
             with col2:
-                if st.button("❌ Decline", key=f"decline_{leave_id}"):
-                    if f"show_reason_{leave_id}" not in st.session_state:
-                        st.session_state[f"show_reason_{leave_id}"] = False
-                    st.session_state[f"show_reason_{leave_id}"] = not st.session_state[f"show_reason_{leave_id}"]
+                if st.button("❌ Decline", key=f"decline_{employee_id}"):
+                    if f"show_reason_{employee_id}" not in st.session_state:
+                        st.session_state[f"show_reason_{employee_id}"] = False
+                    st.session_state[f"show_reason_{employee_id}"] = not st.session_state[f"show_reason_{employee_id}"]
 
                     if st.session_state[f"show_reason_{leave_id}"]:
-                        decline_reason = st.text_input("Reason for declining:", key=f"reason_{leave_id}")
-                        if st.button("Confirm Decline", key=f"confirm_decline_{leave_id}"):
+                        decline_reason = st.text_input("Reason for declining:", key=f"reason_{employee_id}")
+                        if st.button("Confirm Decline", key=f"confirm_decline_{employee_id}"):
                             if decline_reason:
-                                update_leave_status(leave_id, "Declined", reason=decline_reason)
+                                update_leave_status(employee_id, "Declined", reason=decline_reason)
                                 st.error(f"Leave for {employee} declined.")
                                 st.rerun()
                             else:
