@@ -89,7 +89,7 @@ def get_all_pending_leaves():
                 # Extract employee name from the nested 'employees' dictionary
                 employee_name = row['employee_table']['First_Name'] if row['employee_table'] else None
                 pending_leaves.append({
-                    "id": row['AUUID'],
+                    "id": row['uuid'],
                     "employee_name": employee_name,
                     "leave_type": row['leave_type'],
                     "start_date": row['start_date'],
@@ -361,7 +361,7 @@ def pending_leaves_view():
 
     for leave in pending_leaves:
         # Access by key name since row_factory is set to sqlite3.Row
-        leave_id = leave["employee_id"]
+        leave_id = leave["id"]
         employee = leave["employee_name"]
         leave_type = leave["leave_type"]
         start_date = leave["start_date"]
