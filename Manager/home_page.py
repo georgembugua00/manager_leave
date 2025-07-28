@@ -135,9 +135,9 @@ def update_leave_status(employee_id, new_status, reason=None):
     if new_status == "Declined":
         update_data["decline_reason"] = reason
     elif new_status == "Recalled":
-        update_data["recall_reason"] = reason
+        update_data["recall_leave"] = reason
     elif new_status == "Withdrawn": # Added for consistency with withdraw_leave
-        update_data["recall_reason"] = reason
+        update_data["recall_leave"] = reason
 
     try:
         response = supabase.table("off_roll_leave").update(update_data).eq("employee_id", employee_id).execute()
@@ -386,7 +386,7 @@ def pending_leaves_view():
                         st.session_state[f"show_reason_{employee_id}"] = False
                     st.session_state[f"show_reason_{employee_id}"] = not st.session_state[f"show_reason_{employee_id}"]
 
-                    if st.session_state[f"show_reason_{leave_id}"]:
+                    if st.session_state[f"show_reason_{employee_id}"]:
                         decline_reason = st.text_input("Reason for declining:", key=f"reason_{employee_id}")
                         if st.button("Confirm Decline", key=f"confirm_decline_{employee_id}"):
                             if decline_reason:
